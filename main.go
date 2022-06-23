@@ -12,6 +12,7 @@ import (
 func main() {
 	// load the os environments
 	//---------------------------------------------------
+
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -31,8 +32,14 @@ func main() {
 		Username:    username,
 	}
 
-	var tokenResp cognito.TokenResponse
-	tokenResp = *cognito.GetCognitoTokens(user)
+	cc := cognito.CognitoClient{
+		AWSCognitoUser: user,
+	}
+
+	cc.GetCognitoTokens(user)
+	var tokenResp *cognito.TokenResponse
+	tokenResp = cc.GetCognitoTokens(user)
+	//tokenResp = cognito.GetCognitoTokens(user)
 
 	// print the tokens
 	fmt.Printf("Access Token: %s\n", tokenResp.AccessToken)

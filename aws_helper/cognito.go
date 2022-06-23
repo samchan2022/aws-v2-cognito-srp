@@ -4,13 +4,17 @@ import (
 	"context"
 	"time"
 
-	cognitosrp "github.com/alexrudd/cognito-srp/v4"
-
+	cognitobase "awshelper/cognito/aws_helper/base"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	cip "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 )
+
+type CognitoClient struct {
+	csrp *cognitobase.CognitoSRP
+	AWSCognitoUser
+}
 
 type AWSCognitoUser struct {
 	Username    string
@@ -26,9 +30,25 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
-func GetCognitoTokens(c AWSCognitoUser) *TokenResponse {
+func (cc CognitoClient) init(c AWSCognitoUser) {
+	csrp, _ := cognitobase.NewCognitoSRP(c.Username, c.Password, c.UserPoolId, c.AppClientID, nil)
+
+	cc.csrp = csrp
+	cc.AWSCognitoUser = c
+
+}
+
+func (cc CognitoClient) GetClient() *cip.Client {
+	// configure cognito identity provider
+	cfg, _ := config.LoadDefaultConfig(context.TODO(),
+		config.WithRegion(cc.AWSCognitoUser.Region),
+	)
+	return cip.NewFromConfig(cfg)
+}
+
+func (cc CognitoClient) GetCognitoTokens(c AWSCognitoUser) *TokenResponse {
 	var tokenResp = TokenResponse{}
-	csrp, _ := cognitosrp.NewCognitoSRP(c.Username, c.Password, c.UserPoolId, c.AppClientID, nil)
+	csrp, _ := cognitobase.NewCognitoSRP(c.Username, c.Password, c.UserPoolId, c.AppClientID, nil)
 
 	// configure cognito identity provider
 	cfg, _ := config.LoadDefaultConfig(context.TODO(),
