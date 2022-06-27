@@ -30,6 +30,7 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
+// init cognito with the admin account
 func (cc CognitoClient) init(c AWSCognitoUser) {
 	csrp, _ := cognitobase.NewCognitoSRP(c.Username, c.Password, c.UserPoolId, c.AppClientID, nil)
 
@@ -88,5 +89,30 @@ func (cc CognitoClient) GetCognitoTokens(c AWSCognitoUser) *TokenResponse {
 		tokenResp.IdToken = *resp.AuthenticationResult.IdToken
 		tokenResp.RefreshToken = *resp.AuthenticationResult.RefreshToken
 	}
+	return &tokenResp
+}
+
+func (cc CognitoClient) RefreshToken(svc *cip.Client, username, refreshToken string) *TokenResponse {
+	var tokenResp = TokenResponse{}
+
+	authParam := map[string]string{
+		"USERNAME":      username,
+		"REFRESH_TOKEN": refreshToken,
+	}
+
+	// initiate auth
+	//---------------------------------------------------
+	resp, err := svc.InitiateAuth(context.Background(), &cip.InitiateAuthInput{
+		AuthFlow:       types.AuthFlowTypeRefreshTokenAuth,
+		ClientId:       aws.String(cc.AWSCognitoUser.AppClientID),
+		AuthParameters: authParam,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	tokenResp.AccessToken = *resp.AuthenticationResult.AccessToken
+	tokenResp.IdToken = *resp.AuthenticationResult.IdToken
 	return &tokenResp
 }
