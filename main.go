@@ -24,7 +24,11 @@ func main() {
 	userPoolID := os.Getenv("AWS_COGNITO_USER_POOL_ID")
 	username := os.Getenv("AWS_USERNAME")
 
-	refreshToken := os.Getenv("REFRESH_TOKEN")
+	newPw := os.Getenv("AWS_NEW_PW")
+	givenName := os.Getenv("AWS_GIVEN_NAME")
+	familyName := os.Getenv("AWS_FAMILY_NAME")
+
+	//refreshToken := os.Getenv("REFRESH_TOKEN")
 	var user = cognito.AWSCognitoUser{
 		AppClientID: appClientID,
 		Password:    password,
@@ -37,10 +41,17 @@ func main() {
 		AWSCognitoUser: user,
 	}
 
-	cognitoClient := cc.GetClient()
+	//cognitoClient := cc.GetClient()
 	var tokenResp *cognito.TokenResponse
-	tokenResp = cc.RefreshToken(cognitoClient, username, refreshToken)
+
+    // RefreshToken
+	//tokenResp = cc.RefreshToken(cognitoClient, username, refreshToken)
+
+    // Get token
 	//tokenResp = cc.GetCognitoTokens(user)
+
+    // Set new pw
+	tokenResp = cc.SetNewPassword(user, newPw, givenName, familyName)
 
 	// print the tokens
 	fmt.Printf("Access Token: %s\n", tokenResp.AccessToken)

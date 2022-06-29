@@ -92,6 +92,74 @@ func (cc CognitoClient) GetCognitoTokens(c AWSCognitoUser) *TokenResponse {
 	return &tokenResp
 }
 
+func (cc CognitoClient) SetNewPassword(c AWSCognitoUser, newPassword, givenName, familyName string) *TokenResponse {
+	var tokenResp = TokenResponse{}
+	csrp, _ := cognitobase.NewCognitoSRP(c.Username, c.Password, c.UserPoolId, c.AppClientID, nil)
+
+	// configure cognito identity provider
+	cfg, _ := config.LoadDefaultConfig(context.TODO(),
+		config.WithRegion(c.Region),
+	)
+
+	svc := cip.NewFromConfig(cfg)
+
+	// initiate auth
+	//---------------------------------------------------
+	resp, err := svc.InitiateAuth(context.Background(), &cip.InitiateAuthInput{
+		AuthFlow:       types.AuthFlowTypeUserSrpAuth,
+		ClientId:       aws.String(csrp.GetClientId()),
+		AuthParameters: csrp.GetAuthParams(),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	// respond to password verifier challenge
+	//---------------------------------------------------
+	if resp.ChallengeName == types.ChallengeNameTypePasswordVerifier {
+		challengeResponses, _ := csrp.PasswordVerifierChallenge(resp.ChallengeParameters, time.Now())
+
+		resp, err := svc.RespondToAuthChallenge(context.Background(), &cip.RespondToAuthChallengeInput{
+			ChallengeName:      types.ChallengeNameTypePasswordVerifier,
+			ChallengeResponses: challengeResponses,
+			ClientId:           aws.String(csrp.GetClientId()),
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		// respond to new pw challenge
+		//---------------------------------------------------
+		if resp.ChallengeName == types.ChallengeNameTypeNewPasswordRequired {
+			challengeResponses := map[string]string{
+				"USERNAME":                   csrp.GetUsername(),
+				"NEW_PASSWORD":               newPassword,
+				"userAttributes.given_name":  givenName,
+				"userAttributes.family_name": familyName,
+			}
+			newPwResp, err := svc.RespondToAuthChallenge(context.Background(), &cip.RespondToAuthChallengeInput{
+				ChallengeName:      types.ChallengeNameTypeNewPasswordRequired,
+				ChallengeResponses: challengeResponses,
+				Session:            resp.Session,
+				ClientId:           aws.String(csrp.GetClientId()),
+			})
+			if err != nil {
+				panic(err)
+			}
+			tokenResp.AccessToken = *newPwResp.AuthenticationResult.AccessToken
+			tokenResp.IdToken = *newPwResp.AuthenticationResult.IdToken
+			tokenResp.RefreshToken = *newPwResp.AuthenticationResult.RefreshToken
+			return &tokenResp
+		}
+
+		tokenResp.AccessToken = *resp.AuthenticationResult.AccessToken
+		tokenResp.IdToken = *resp.AuthenticationResult.IdToken
+		tokenResp.RefreshToken = *resp.AuthenticationResult.RefreshToken
+	}
+	return &tokenResp
+}
+
 func (cc CognitoClient) RefreshToken(svc *cip.Client, username, refreshToken string) *TokenResponse {
 	var tokenResp = TokenResponse{}
 

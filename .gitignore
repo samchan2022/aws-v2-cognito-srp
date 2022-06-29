@@ -11,7 +11,7 @@ pkg/*
 .vendor
 
 
-.env
+.env*
 
 #############################
 #  $ gibo Go JetBrains OSX  #

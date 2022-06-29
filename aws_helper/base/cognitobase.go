@@ -124,7 +124,50 @@ func (csrp *CognitoSRP) GetSecretHash(username string) (string, error) {
 // PasswordVerifierChallenge returns the ChallengeResponses map to be used
 // inside the cognitoidentityprovider.RespondToAuthChallengeInput object which
 // fulfils the PASSWORD_VERIFIER Cognito challenge
+// part 1 build chal resp to be passed in sdk resp to auth
+// work on the hash fn
 func (csrp *CognitoSRP) PasswordVerifierChallenge(challengeParms map[string]string, ts time.Time) (map[string]string, error) {
+	var (
+		internalUsername = challengeParms["USERNAME"]
+		userId           = challengeParms["USER_ID_FOR_SRP"]
+		saltHex          = challengeParms["SALT"]
+		srpBHex          = challengeParms["SRP_B"]
+		secretBlockB64   = challengeParms["SECRET_BLOCK"]
+
+		timestamp = ts.In(time.UTC).Format("Mon Jan 2 03:04:05 MST 2006")
+		hkdf      = csrp.getPasswordAuthenticationKey(userId, csrp.password, hexToBig(srpBHex), hexToBig(saltHex))
+	)
+
+	secretBlockBytes, err := base64.StdEncoding.DecodeString(secretBlockB64)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode challenge parameter 'SECRET_BLOCK', %s", err.Error())
+	}
+
+	msg := csrp.poolName + userId + string(secretBlockBytes) + timestamp
+	hmacObj := hmac.New(sha256.New, hkdf)
+	hmacObj.Write([]byte(msg))
+	signature := base64.StdEncoding.EncodeToString(hmacObj.Sum(nil))
+
+	response := map[string]string{
+		"TIMESTAMP":                   timestamp,
+		"USERNAME":                    internalUsername,
+		"PASSWORD_CLAIM_SECRET_BLOCK": secretBlockB64,
+		"PASSWORD_CLAIM_SIGNATURE":    signature,
+	}
+	if secret, err := csrp.GetSecretHash(internalUsername); err == nil {
+		response["SECRET_HASH"] = secret
+	}
+
+	return response, nil
+}
+
+// TODO: work on the password
+//
+// NewPasswordRequiredChallenge returns the ChallengeResponses map to be used
+// inside the cognitoidentityprovider.RespondToAuthChallengeInput object which
+// fulfils the PASSWORD_VERIFIER Cognito challenge
+// part 2 pw dual 
+func (csrp *CognitoSRP) NewPasswordRequiredChallenge(challengeParms map[string]string, ts time.Time) (map[string]string, error) {
 	var (
 		internalUsername = challengeParms["USERNAME"]
 		userId           = challengeParms["USER_ID_FOR_SRP"]
@@ -251,4 +294,3 @@ func computeHKDF(ikm, salt string) []byte {
 func calculateU(bigA, bigB *big.Int) *big.Int {
 	return hexToBig(hexHash(padHex(bigA.Text(16)) + padHex(bigB.Text(16))))
 }
-
