@@ -24,6 +24,14 @@ type AWSCognitoUser struct {
 	Region      string
 	UserPoolId  string
 	AppClientID string
+	AWSUserAttr
+}
+
+type AWSUserAttr struct {
+	Email         string
+	GivenName     string
+	FamilyName    string
+	EmailVerified string
 }
 
 type TokenResponse struct {
@@ -33,6 +41,7 @@ type TokenResponse struct {
 }
 
 func NewCognitoClient(c AWSCognitoUser) (*CognitoClient, error) {
+	// Store the Admin user
 	csrp, err := cognitobase.NewCognitoSRP(c.Username, c.Password, c.UserPoolId, c.AppClientID, nil)
 	if err != nil {
 		panic(err)
@@ -52,6 +61,92 @@ func NewCognitoClient(c AWSCognitoUser) (*CognitoClient, error) {
 		svc:            cip.NewFromConfig(cfg),
 	}
 	return cc, err
+}
+
+func (cc *CognitoClient) AdminCreateUser(c AWSCognitoUser) (*cip.AdminCreateUserOutput, error) {
+	userAttrs := []types.AttributeType{
+		{
+			Name:  aws.String("email"),
+			Value: &c.AWSUserAttr.Email,
+		},
+		{
+			Name:  aws.String("given_name"),
+			Value: &c.AWSUserAttr.GivenName,
+		},
+		{
+			Name:  aws.String("family_name"),
+			Value: &c.AWSUserAttr.FamilyName,
+		},
+		{
+			Name:  aws.String("email_verified"),
+			Value: aws.String("true"),
+		},
+	}
+	resp, err := cc.svc.AdminCreateUser(context.Background(), &cip.AdminCreateUserInput{
+		UserPoolId:     aws.String(c.UserPoolId),
+		Username:       aws.String(c.Username),
+		UserAttributes: userAttrs,
+		DesiredDeliveryMediums: []types.DeliveryMediumType{
+			types.DeliveryMediumTypeEmail,
+		},
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return resp, err
+}
+
+func (cc *CognitoClient) AdminGetUser(username string) (*cip.AdminGetUserOutput, error) {
+	resp, err := cc.svc.AdminGetUser(context.Background(), &cip.AdminGetUserInput{
+		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
+		Username:   aws.String(username),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return resp, err
+}
+
+func (cc *CognitoClient) AdminResetUserPassword(username string) (*cip.AdminResetUserPasswordOutput, error) {
+	resp, err := cc.svc.AdminResetUserPassword(context.Background(), &cip.AdminResetUserPasswordInput{
+		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
+		Username:   aws.String(username),
+	})
+	if err != nil {
+		panic(err)
+	}
+	return resp, err
+}
+
+func (cc *CognitoClient) CreateGroup(forCustomer, customerFullName string) (bool, error) {
+	_, err := cc.svc.CreateGroup(context.Background(), &cip.CreateGroupInput{
+		GroupName:   aws.String(forCustomer + "_users"),
+		UserPoolId:  aws.String(cc.AWSCognitoUser.UserPoolId),
+		Description: aws.String(customerFullName),
+		//Precedence:  nil,
+		RoleArn: aws.String("arn:aws:iam::463637341613:role/Cognito-SBG-Users"),
+	})
+	if err != nil {
+		panic(err)
+		return false, err
+	}
+	return true, err
+}
+
+func (cc *CognitoClient) GetGroup(customer string) (*types.GroupType, error) {
+	resp, err := cc.svc.GetGroup(context.Background(), &cip.GetGroupInput{
+		GroupName:  aws.String(customer),
+		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
+	})
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+	return resp.Group, err
 }
 
 func (cc *CognitoClient) GetCognitoTokens(c AWSCognitoUser) (*TokenResponse, error) {
@@ -151,6 +246,19 @@ func (cc *CognitoClient) SetNewPassword(c AWSCognitoUser, newPassword, givenName
 	return &tokenResp, err
 }
 
+func (cc *CognitoClient) AdminUserGlobalSignOut(username string) (*cip.AdminUserGlobalSignOutOutput, error) {
+	resp, err := cc.svc.AdminUserGlobalSignOut(context.Background(), &cip.AdminUserGlobalSignOutInput{
+		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
+		Username:   aws.String(username),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return resp, err
+}
+
 func (cc *CognitoClient) RefreshToken(username, refreshToken string) (*TokenResponse, error) {
 	var tokenResp = TokenResponse{}
 
@@ -198,4 +306,31 @@ func (cc *CognitoClient) ConfirmForgotPassword(username, confirmationCode, newPw
 		panic(err)
 	}
 	return resp, err
+}
+
+func (cc *CognitoClient) ChangePassword(accessToken, previousPw, proposedPw string, args interface{}, callback func(interface{}) error) (bool, error) {
+	resp, err := cc.svc.ChangePassword(context.Background(), &cip.ChangePasswordInput{
+		AccessToken:      aws.String(accessToken),
+		PreviousPassword: aws.String(previousPw),
+		ProposedPassword: aws.String(proposedPw),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	ok := resp.ResultMetadata.Has("HTTPStatusCode")
+	if !ok {
+		return false, err
+	}
+
+	if status := resp.ResultMetadata.Get("HTTPStatusCode"); status == 200 {
+		// perform follow up action after password change, such as signout all users
+		err := callback(args)
+		if err != nil {
+			panic(err)
+			return false, err
+		}
+	}
+	return true, nil
 }

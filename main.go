@@ -23,6 +23,18 @@ func main() {
 	userPoolID := os.Getenv("AWS_COGNITO_USER_POOL_ID")
 	username := os.Getenv("AWS_USERNAME")
 
+	givenName := os.Getenv("AWS_GIVEN_NAME")
+	familyName := os.Getenv("AWS_FAMILY_NAME")
+	email := os.Getenv("AWS_EMAIL")
+
+	var userAttr = cognito.AWSUserAttr{
+		Email:      email,
+		GivenName:  givenName,
+		FamilyName: familyName,
+		//EmailVerified : aws.String("true"),
+		EmailVerified: "true",
+	}
+
 	//refreshToken := os.Getenv("REFRESH_TOKEN")
 	var user = cognito.AWSCognitoUser{
 		AppClientID: appClientID,
@@ -30,32 +42,41 @@ func main() {
 		Region:      region,
 		UserPoolId:  userPoolID,
 		Username:    username,
+		AWSUserAttr: userAttr,
 	}
 
 	cc, _ := cognito.NewCognitoClient(user)
 
 	var tokenResp *cognito.TokenResponse
+	// create user
+	//---------------------------------------------------
+	//newPw := os.Getenv("AWS_NEW_PW")
+	//cc.AdminCreateUser(user)
+
+	// Get user token
+	//---------------------------------------------------
+	tokenResp, _ = cc.GetCognitoTokens(user)
 
 	// Set new pw
 	//---------------------------------------------------
-	//newPw := os.Getenv("AWS_NEW_PW")
-	//givenName := os.Getenv("AWS_GIVEN_NAME")
-	//familyName := os.Getenv("AWS_FAMILY_NAME")
+
 	//tokenResp, _ = cc.SetNewPassword(user, newPw, givenName, familyName)
 
 	// ForgotPassword
 	//---------------------------------------------------
-	//_, err = cc.ForgotPassword(username)
+	//resp, err := cc.ForgotPassword(username)
+	//fmt.Println("resp", resp)
 
 	// Confirm Forgot Password
 	//---------------------------------------------------
 	//confirmationCode := os.Getenv("AWS_CONFIRMATION_CODE")
 	//newPw := os.Getenv("AWS_NEW_PW")
-	//_, err = cc.ConfirmForgotPassword(username, confirmationCode, newPw)
+	//resp, err := cc.ConfirmForgotPassword(username, confirmationCode, newPw)
+	//fmt.Println(resp)
 
 	// print the tokens
-	fmt.Printf("Access Token: %s\n", tokenResp.AccessToken)
-	fmt.Printf("ID Token: %s\n", tokenResp.IdToken)
-	fmt.Printf("Refresh Token: %s\n", tokenResp.RefreshToken)
-	fmt.Println(tokenResp)
+	fmt.Printf("---------------------------------------------------\n")
+	fmt.Printf("Access Token: %s\n\n", tokenResp.AccessToken)
+	fmt.Printf("ID Token: %s\n\n", tokenResp.IdToken)
+	fmt.Printf("Refresh Token: %s\n\n", tokenResp.RefreshToken)
 }
