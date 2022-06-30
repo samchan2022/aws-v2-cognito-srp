@@ -98,6 +98,33 @@ func (cc *CognitoClient) AdminCreateUser(c AWSCognitoUser) (*cip.AdminCreateUser
 	return resp, err
 }
 
+func (cc *CognitoClient) AdminDeleteUser(username string) (*cip.AdminDeleteUserOutput, error) {
+	resp, err := cc.svc.AdminDeleteUser(context.Background(), &cip.AdminDeleteUserInput{
+		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
+		Username:   aws.String(username),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return resp, err
+}
+
+func (cc *CognitoClient) AdminAddUserToGroup(groupName, username string) (*cip.AdminAddUserToGroupOutput, error) {
+	resp, err := cc.svc.AdminAddUserToGroup(context.Background(), &cip.AdminAddUserToGroupInput{
+		GroupName:  aws.String(groupName),
+		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
+		Username:   aws.String(username),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return resp, err
+}
+
 func (cc *CognitoClient) AdminGetUser(username string) (*cip.AdminGetUserOutput, error) {
 	resp, err := cc.svc.AdminGetUser(context.Background(), &cip.AdminGetUserInput{
 		UserPoolId: aws.String(cc.AWSCognitoUser.UserPoolId),
