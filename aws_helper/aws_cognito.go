@@ -2,6 +2,8 @@ package aws_helper
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"time"
 
 	cognitobase "awshelper/cognito/aws_helper/base"
@@ -24,6 +26,9 @@ type AWSCognitoUser struct {
 	Region      string
 	UserPoolId  string
 	AppClientID string
+	// for sts session
+	RoleArn string
+
 	AWSUserAttr
 }
 
@@ -50,9 +55,11 @@ func NewCognitoClient(c AWSCognitoUser) (*CognitoClient, error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(c.Region),
 	)
-
 	if err != nil {
 		panic(err)
+	}
+	if c.RoleArn != "" {
+		cfg.Credentials = stscreds.NewAssumeRoleProvider(sts.NewFromConfig(cfg), c.RoleArn)
 	}
 
 	cc := &CognitoClient{
@@ -149,13 +156,13 @@ func (cc *CognitoClient) AdminResetUserPassword(username string) (*cip.AdminRese
 	return resp, err
 }
 
-func (cc *CognitoClient) CreateGroup(forCustomer, customerFullName string) (bool, error) {
+func (cc *CognitoClient) CreateGroup(groupName, desc, roleArn string) (bool, error) {
 	_, err := cc.svc.CreateGroup(context.Background(), &cip.CreateGroupInput{
-		GroupName:   aws.String(forCustomer + "_users"),
+		GroupName:   aws.String(groupName),
 		UserPoolId:  aws.String(cc.AWSCognitoUser.UserPoolId),
-		Description: aws.String(customerFullName),
+		Description: aws.String(desc),
 		//Precedence:  nil,
-		RoleArn: aws.String("arn:aws:iam::463637341613:role/Cognito-SBG-Users"),
+		RoleArn: aws.String(roleArn),
 	})
 	if err != nil {
 		panic(err)

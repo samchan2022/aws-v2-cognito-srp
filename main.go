@@ -27,6 +27,8 @@ func main() {
 	familyName := os.Getenv("AWS_FAMILY_NAME")
 	email := os.Getenv("AWS_EMAIL")
 
+	roleArn := os.Getenv("AWS_ROLE_ARN")
+
 	var userAttr = cognito.AWSUserAttr{
 		Email:      email,
 		GivenName:  givenName,
@@ -43,6 +45,7 @@ func main() {
 		UserPoolId:  userPoolID,
 		Username:    username,
 		AWSUserAttr: userAttr,
+		RoleArn:     roleArn,
 	}
 
 	cc, _ := cognito.NewCognitoClient(user)
@@ -50,16 +53,17 @@ func main() {
 	var tokenResp *cognito.TokenResponse
 	// create user
 	//---------------------------------------------------
-	//newPw := os.Getenv("AWS_NEW_PW")
-	//cc.AdminCreateUser(user)
+	//cc.CreateUser(user)
+	grpArn := os.Getenv("AWS_GROUP_ROLE_ARN")
+	cc.CreateGroup("samtestgroup", "testDesc", grpArn)
 
 	// Get user token
 	//---------------------------------------------------
-	tokenResp, _ = cc.GetCognitoTokens(user)
+	//tokenResp, _ = cc.GetCognitoTokens(user)
 
-	// Set new pw
+	// Set new pw /force new pw
 	//---------------------------------------------------
-
+	//newPw := os.Getenv("AWS_NEW_PW")
 	//tokenResp, _ = cc.SetNewPassword(user, newPw, givenName, familyName)
 
 	// ForgotPassword
